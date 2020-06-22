@@ -267,7 +267,8 @@ function sparse_distmat(
     rad;
     showprogress::Bool = true,
     kwargs...,
-) where {S}
+)
+    S = Distances.result_type(dist, first(y), first(y))
     T     = floattype(S)
     N     = length(y)
     INDS  = [zeros(Int, k) for _ = 1:N]

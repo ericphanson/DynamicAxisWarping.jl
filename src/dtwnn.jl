@@ -261,7 +261,7 @@ Compute the `k` nearest neighbors between signals in `y`, corresponding to the `
 - `showprogress = true`
 """
 function sparse_distmat(
-    y::AbstractVector{<:AbstractArray{S}},
+    y::AbstractVector,
     k,
     dist,
     rad;

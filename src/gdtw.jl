@@ -94,20 +94,20 @@ end
         η          = T(1 / 8),
         max_iters  = 3,
         metric     = (x, y) -> norm(x - y),
-        Rcum       = u -> u^2,
+        Rcum       = abs2,
         smin::Real = T(0.001),
         smax::Real = T(5.0),
-        Rinst      = symmetric  ? 
+        Rinst      = symmetric  ?
                         ϕ′ -> ( (smin <= ϕ′ <= smax)
                             && (smin <= 2 - ϕ′ <= smax) ) ? (ϕ′-1)^2 : typemax(T)
                                 :
                         ϕ′ -> (smin <= ϕ′ <= smax) ? (ϕ′-1)^2 : typemax(T),
         verbose    = false,
-        warp       = zeros(length(t)),
+        warp       = zeros(T, length(t)),
         callback   = nothing,
     ) where T -> cost, ϕ, ψ
 
-Computes a general DTW distance following [DB19](https://arxiv.org/abs/1905.12893). 
+Computes a general DTW distance following [DB19](https://arxiv.org/abs/1905.12893).
 
 Aims to find `ϕ(s)` to minimize
 
@@ -170,10 +170,10 @@ function prepare_gdtw(
     η::T       = T(1 / 8),
     max_iters  = 3,
     metric     = (x, y) -> norm(x - y),
-    Rcum       = u -> u^2,
+    Rcum       = abs2,
     smin::T    = T(0.001),
     smax::T    = T(5.0),
-    Rinst      = symmetric  ? 
+    Rinst      = symmetric  ?
                     ϕ′ -> ( (smin <= ϕ′ <= smax)
                         && (smin <= 2 - ϕ′ <= smax) ) ? (ϕ′-1)^2 : typemax(T)
                             :
@@ -184,9 +184,8 @@ function prepare_gdtw(
 ) where T
     N = length(t)
 
-    if !(M > N / smax)
-        @warn "`M <= N / smax`; problem may be infeasible" M N smax
-    end
+    (M > N / smax) || @warn "`M <= N / smax`; problem may be infeasible" M N smax
+
 
     @unpack l₀, l_prev, l,  u₀, u_prev, u, τ = cache
     inital_bounds!(l₀, u₀, t, smin, smax, symmetric)
@@ -195,7 +194,7 @@ function prepare_gdtw(
     u .= u₀
     l .= l₀
     update_τ!(τ, t, M, l, u)
-    
+
     function node_weight(j, s)
         s == length(t) && return zero(T)
         Rval = Rcum(τ[j, s] - t[s])
@@ -290,7 +289,7 @@ function iterative_gdtw!(data; max_iters = data.max_iters, verbose = data.verbos
 
         iter[] += 1
     end
-    
+
     return cost
 end
 
@@ -299,7 +298,7 @@ end
 
 Computes the interpolations from a `data` `NamedTuple`
 with entries for the time points `t`, warping points `warp`,
-and a boolean `symmetric`. 
+and a boolean `symmetric`.
 """
 function gdtw_warpings(data)
     @unpack t, warp, symmetric = data

@@ -15,6 +15,12 @@ function handleargs(seq1, seq2, dist::SemiMetric = SqEuclidean(); kwargs...)
     seq1, seq2, D, i1, i2
 end
 
+function handleargs(seq1, seq2, dist, i2min, i2max; kwargs...)
+    D = dtw_cost_matrix(seq1, seq2, dist, i2min, i2max; kwargs...)
+    cost, i1, i2 = DynamicAxisWarping.trackback(D)
+    seq1, seq2, D, i1, i2
+end
+
 handleargs(h; kwargs...) = handleargs(h.args...; kwargs...)
 
 @userplot DTWPlot
@@ -24,14 +30,14 @@ handleargs(h; kwargs...) = handleargs(h.args...; kwargs...)
 
     n1, n2 = lastlength(seq1), lastlength(seq2)
 
-    all = ndims(seq1) == 1
+    all = ndims(seq1) ∈ (1,2)
     # set up the subplots
     legend --> false
     link := :both
     grid --> false
     if all
         layout --> @layout [
-            a b{0.9w,0.9h}
+            a b{0.8w,0.8h}
             _ c
         ]
     else
@@ -42,10 +48,10 @@ handleargs(h; kwargs...) = handleargs(h.args...; kwargs...)
     bottom_margin --> 0mm
     top_margin --> 0mm
     right_margin --> 0mm
-    clims --> (0, 3 * D[end, end])
 
     # heatmap
     @series begin
+        clims --> (0, 3 * D[end, end])
         seriestype := :heatmap
         formatter --> (z) -> ""
         subplot := (all ? 2 : 1)
@@ -53,11 +59,11 @@ handleargs(h; kwargs...) = handleargs(h.args...; kwargs...)
     end
 
     # the rest of the plots are paths
-    seriestype := :path
-    linecolor --> RGB(0, 0, 0)
 
     # main plot
     s1 = @series begin
+        seriestype := :path
+        linecolor --> RGB(0, 0, 0)
         linewidth --> 3
         subplot := (all ? 2 : 1)
         formatter --> (z) -> ""
@@ -65,16 +71,33 @@ handleargs(h; kwargs...) = handleargs(h.args...; kwargs...)
     end
 
     if all
-        # left line plot
-        @series begin
-            subplot := 1
-            seq2, 1:n2
-        end
+        if ndims(seq1) == 1
+            # left line plot
+            @series begin
+                subplot := 1
+                seq2, 1:n2
+            end
 
-        # bottom line plot
-        @series begin
-            subplot := 3
-            1:n1, seq1
+            # bottom line plot
+            @series begin
+                subplot := 3
+                1:n1, seq1
+            end
+        else
+            # left line plot
+            @series begin
+                seriestype := :heatmap
+                subplot := 1
+                seq2'
+            end
+
+            # bottom line plot
+            @series begin
+                seriestype := :heatmap
+                subplot := 3
+                seq1
+            end
+
         end
     end
 end
@@ -104,4 +127,37 @@ using Statistics
         i = fill(Inf, 1, length(i1))
         vec([i1'; i2'; i][:,1:ds:end]), vec([s1[i1]'; s2[i2]'; i][:,1:ds:end])
     end
+end
+
+@recipe function plot(r::DTWSearchResult)
+    title --> "DTW-NN Search result"
+    yguide --> "Distance"
+    label --> round(r.cost, sigdigits=4)
+    if length(r.dists) == 1
+        @series begin
+            seriestype := :scatter
+            makersize --> 15
+            markershape --> :x
+            group := 1
+            r.dists
+        end
+        @series begin
+            seriestype := :hline
+            linestyle := :dash
+            primary := false
+            group := 1
+            r.dists
+        end
+    else
+        @series r.dists
+    end
+
+    @series begin
+        seriestype := :vline
+        linestyle := :dash
+        linecolor := :black
+        primary := false
+        [r.loc]
+    end
+
 end

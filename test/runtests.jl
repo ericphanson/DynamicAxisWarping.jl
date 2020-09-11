@@ -6,9 +6,24 @@ using ForwardDiff, QuadGK
 @testset "DynamicAxisWarping" begin
     @info "Testing DynamicAxisWarping"
 
-    @testset "GDTW" begin
-        @info "Testing GDTW"
-        include("test_gdtw.jl")
+
+    @testset "radiuslimits" begin
+        @info "Testing radiuslimits"
+
+        n,m = 10,20
+        mi,ma = radiuslimits(3,n,m)
+        @test length(mi) == length(ma) == 10
+        @test mi[1] == 1
+        @test ma[1] == 4+10
+        @test ma[end] == 20
+
+        n,m = 20,10
+        mi,ma = radiuslimits(3,n,m)
+        @test length(mi) == length(ma) == 20
+        @test mi[1] == 1
+        @test ma[1] == 4
+        @test ma[end] == 10
+
     end
 
     @testset "LinearInterpolation" begin
@@ -36,8 +51,10 @@ using ForwardDiff, QuadGK
     @testset "Normalizers" begin
         @info "Testing Normalizers"
         a = randn(2,100)
-        @test dtwnn(a,a,SqEuclidean(),3,normalizer=IsoZNormalizer).cost < 1e-20
-        @test dtwnn(a,a,SqEuclidean(),3,normalizer=ZNormalizer).cost < 1e-20
+        @test dtwnn(a,a,SqEuclidean(),3,DiagonalZNormalizer).cost < 1e-20
+        @test dtwnn(a,a,SqEuclidean(),3,NormNormalizer).cost < 1e-20
+        a = randn(100)
+        @test dtwnn(a,a,SqEuclidean(),3,ZNormalizer).cost < 1e-20
     end
 
     @testset "Basic Dynamic Time Warping" begin
@@ -419,9 +436,12 @@ using ForwardDiff, QuadGK
         @inferred dtwnn(a, b, SqEuclidean(), 7)
 
         res = dtwnn(a, b, SqEuclidean(), 7)
+        plot(res)
         m = findmin(naive(a, b))
         @test m[1] ≈ res.cost
         @test m[2] == res.loc
+        @test res.cost ≈ DTW(radius=7)(a,b)
+        @test res.cost ≈ DTW(radius=7)(b,a)
 
         res = dtwnn(a, b, SqEuclidean(), 7, saveall=true)
         resn = naive(a, b)
@@ -444,8 +464,9 @@ using ForwardDiff, QuadGK
             end
         end
 
-        @inferred dtwnn(a, b, SqEuclidean(), 7, normalizer=Val(ZNormalizer))
-        res = dtwnn(a, b, SqEuclidean(), 7, normalizer=Val(ZNormalizer), saveall=true)
+        w = @inferred DTWWorkspace(a, SqEuclidean(), 7, ZNormalizer)
+        @inferred dtwnn(a, b, SqEuclidean(), 7, ZNormalizer)
+        res = dtwnn(a, b, SqEuclidean(), 7, ZNormalizer, saveall=true)
         resn = naive_norm(a, b)
         m = findmin(resn)
         @test m[1] ≈ res.cost
@@ -487,6 +508,10 @@ using ForwardDiff, QuadGK
 
     end
 
+    @testset "GDTW" begin
+        @info "Testing GDTW"
+        include("test_gdtw.jl")
+    end
 
     @testset "DBA clust" begin
         allsame(x) = all(==(x[1]), x)
@@ -512,6 +537,17 @@ using ForwardDiff, QuadGK
         ) for _ in 1:2]
         inds = 1:5
         @test any(all([allsame(result.clustids[inds .+ 5i]) for i in 0:3]) for result in result)
+
+
+        nclust = 10
+        result = dbaclust(
+            data,
+            nclust,
+            DTW(10);
+            n_init = 20,
+            iterations = 10,
+        )
+        @test all(1:10 .∈ Ref(result.clustids))
     end
 
 
@@ -623,8 +659,8 @@ end
 
 # a      = sin.((1:1000))     .+ 0.05 .* randn.()
 # b      = sin.((1:1000_000)) .+ 0.05 .* randn.()
-# @time dtwnn(a, b, SqEuclidean(), 7, normalizer=ZNormalizer, saveall=false)
-# @btime dtwnn($a, $b, SqEuclidean(), 5, normalizer=Nothing, saveall=false)
+# @time dtwnn(a, b, SqEuclidean(), 7, ZNormalizer, saveall=false)
+# @btime dtwnn($a, $b, SqEuclidean(), 5, Nothing, saveall=false)
 # @btime naive_norm($a, $b)
 
 
@@ -643,4 +679,4 @@ end
 #
 # a = sin.(0.1f0 .* (1:100))    .+ 0.1f0 .* randn.(Float32)
 # b = sin.(0.1f0 .* (1:1000_000)) .+ 0.1f0 .* randn.(Float32)
-# @btime dtwnn($a, $b, SqEuclidean(), 5, prune_endpoints = true, prune_envelope = true, normalizer=Val(ZNormalizer))
+# @btime dtwnn($a, $b, SqEuclidean(), 5, prune_endpoints = true, prune_envelope = true, ZNormalizer)
